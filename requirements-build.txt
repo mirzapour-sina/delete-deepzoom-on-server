@@ -1,0 +1,3 @@
+-r requirements.txt
+PyInstaller>=6.10,<7
+Nuitka>=2.7,<3

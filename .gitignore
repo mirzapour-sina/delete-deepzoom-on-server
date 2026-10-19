@@ -1,0 +1,6 @@
+/.venv/
+/build/
+/dist-packages/
+__pycache__/
+**/__pycache__/
+*.py[cod]
