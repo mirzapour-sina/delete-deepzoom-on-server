@@ -771,7 +771,7 @@ ApplicationWindow {
                     // This will be handled by SessionTab's internal connection form
                 })
                 sessionTab.manageConnectionsRequested.connect(function() {
-                    window.manageConnectionsDialog.open()
+                    manageConnectionsDialog.open()
                 })
 
                 sessionTab.sessionConnectionStatusChanged.connect(function(status, message) {

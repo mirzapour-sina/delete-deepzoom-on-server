@@ -1216,11 +1216,12 @@ Item {
                     height: 36
 
                     // Checkbox column spacer (width matches the row checkboxes)
-                    Item { Layout.preferredWidth: 20 }
+                    Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
 
                     // Name column
                     Item {
                         Layout.fillWidth: true
+                        Layout.fillHeight: true
                         Rectangle {
                             anchors.fill: parent
                             color: nameHover.containsMouse ? root.colorSurfaceHover : "transparent"
@@ -1260,6 +1261,7 @@ Item {
                     // Size column
                     Item {
                         Layout.preferredWidth: 90
+                        Layout.fillHeight: true
                         Rectangle {
                             anchors.fill: parent
                             color: sizeHover.containsMouse ? root.colorSurfaceHover : "transparent"
@@ -1300,6 +1302,7 @@ Item {
                     // Modified column
                     Item {
                         Layout.preferredWidth: 140
+                        Layout.fillHeight: true
                         Rectangle {
                             anchors.fill: parent
                             color: modifiedHover.containsMouse ? root.colorSurfaceHover : "transparent"
@@ -1339,6 +1342,7 @@ Item {
                     // Type column
                     Item {
                         Layout.preferredWidth: 70
+                        Layout.fillHeight: true
                         Rectangle {
                             anchors.fill: parent
                             color: typeHover.containsMouse ? root.colorSurfaceHover : "transparent"
