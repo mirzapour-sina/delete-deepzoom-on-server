@@ -1241,9 +1241,7 @@ Item {
                             }
                         }
                         RowLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent
                             spacing: 6
                             Label {
                                 text: "Name"
@@ -1282,9 +1280,7 @@ Item {
                             }
                         }
                         RowLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent
                             spacing: 6
                             Label {
                                 text: "Size"
@@ -1324,9 +1320,7 @@ Item {
                             }
                         }
                         RowLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent
                             spacing: 6
                             Label {
                                 text: "Modified"
@@ -1365,9 +1359,7 @@ Item {
                             }
                         }
                         RowLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent
                             spacing: 6
                             Label {
                                 text: "Type"
@@ -1442,6 +1434,7 @@ Item {
 
                                 CheckBox {
                                     id: rowCheckBox
+                                    Layout.preferredWidth: 20
                                     checked: row.selected
                                     enabled: !root.busy
                                     // The checkbox is the multi-select control:

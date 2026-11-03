@@ -353,7 +353,7 @@ ApplicationWindow {
                                 text: modelData.host
                                     ? (modelData.connected ? "● " : "○ ") + modelData.host + ":" + modelData.port
                                     : ("Session " + modelData.id)
-                                color: sessionTabBar.currentIndex === index ? window.colorPrimary : window.colorTextSecondary
+                                color: sessionTabBar.currentIndex === index ? "#ffffff" : window.colorTextSecondary
                                 font.pixelSize: 11
                                 font.bold: sessionTabBar.currentIndex === index
                                 elide: Text.ElideRight
