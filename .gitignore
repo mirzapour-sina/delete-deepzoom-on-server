@@ -1,6 +1,13 @@
-/.venv/
-/build/
-/dist-packages/
+.venv/
+build/
+dist/
 __pycache__/
 **/__pycache__/
 *.py[cod]
+*.egg-info/
+*.log
+output.txt
+nuitka-crash-report.xml
+.deepzoom-cleaner/
+*.exe
+*.appimage

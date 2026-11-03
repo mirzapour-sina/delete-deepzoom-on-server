@@ -1,0 +1,458 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>DeepZoom Cleaner — UX &amp; Optimization Report</title>
+<style>
+/* Design plan
+   Layout: single centered reading column with severity-stripe badges and priority tables.
+   Color: slate UI palette with red danger / green success semantic stripes, matching the app's QML palette.
+   Type: Plus Jakarta Sans (display, restrained) + Source Sans Pro (body), Source Code Pro for file:line refs.
+*/
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --surface: #ffffff;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-text: #991b1b;
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --success-text: #14532d;
+  --warning: #f59e0b;
+  --warning-bg: #fffbeb;
+  --warning-text: #78350f;
+  --ink: #0f172a;
+  font-family: "Source Sans Pro", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #020617;
+    --fg: #f8fafc;
+    --muted: #94a3b8;
+    --border: #334155;
+    --surface: #0f172a;
+    --accent: #60a5fa;
+    --accent-hover: #3b82f6;
+    --danger: #f87171;
+    --danger-bg: #450a0a;
+    --danger-text: #fca5a5;
+    --success: #4ade80;
+    --success-bg: #064e3b;
+    --success-text: #86efac;
+    --warning: #fbbf24;
+    --warning-bg: #451a03;
+    --warning-text: #fcd34d;
+    --ink: #f1f5f9;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #020617;
+  --fg: #f8fafc;
+  --muted: #94a3b8;
+  --border: #334155;
+  --surface: #0f172a;
+  --accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --danger: #f87171;
+  --danger-bg: #450a0a;
+  --danger-text: #fca5a5;
+  --success: #4ade80;
+  --success-bg: #064e3b;
+  --success-text: #86efac;
+  --warning: #fbbf24;
+  --warning-bg: #451a03;
+  --warning-text: #fcd34d;
+  --ink: #f1f5f9;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap {
+  max-width: 700px;
+  margin: 0 auto;
+}
+h1, h2, h3 {
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+h1 {
+  font-size: 26px;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.01em;
+}
+h2 {
+  font-size: 19px;
+  margin: 40px 0 12px 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+h3 {
+  font-size: 15px;
+  margin: 20px 0 6px 0;
+  color: var(--accent);
+}
+p { margin: 0 0 12px 0; }
+.meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+}
+.tag.p0 { border-color: var(--danger); color: var(--danger-text); background: var(--danger-bg); }
+.tag.p1 { border-color: var(--warning); color: var(--warning-text); background: var(--warning-bg); }
+.tag.p2 { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+.tag.p3 { border-color: var(--muted); color: var(--muted); background: var(--surface); }
+.ref {
+  font-family: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(15, 23, 42, 0.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+section h2 .count {
+  float: right;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 20px 0;
+  font-size: 13.5px;
+}
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--border);
+}
+td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(29, 78, 216, 0.04); }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 12px 0;
+}
+.card header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.card h3 { margin: 0; font-size: 14px; }
+.card p { margin: 0 0 8px 0; font-size: 13.5px; }
+.card ul { margin: 0 0 8px 0; padding-left: 18px; }
+.card li { margin: 0 0 5px 0; font-size: 13.5px; }
+.stripe {
+  border-left: 4px solid;
+  padding-left: 12px;
+  margin: 0 0 10px 0;
+}
+.stripe.danger { border-color: var(--danger); }
+.stripe.warning { border-color: var(--warning); }
+.stripe.success { border-color: var(--success); }
+.stripe.accent { border-color: var(--accent); }
+.severity {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.sev-p0 { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger); }
+.sev-p1 { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning); }
+.sev-p2 { background: #eff6ff; color: var(--accent); border: 1px solid var(--accent); }
+.sev-p3 { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.status-ok { color: var(--success-text); font-weight: 600; font-size: 12.5px; }
+.status-warn { color: var(--warning-text); font-weight: 600; font-size: 12.5px; }
+.note {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 24px;
+  font-size: 13.5px;
+}
+.note p { margin: 0 0 8px 0; }
+.note p:last-child { margin-bottom: 0; }
+.small { font-size: 12.5px; color: var(--muted); }
+.anchor { scroll-margin-top: 70px; }
+@media (max-width: 480px) {
+  h1 { font-size: 21px; }
+  table { font-size: 12px; }
+  th, td { padding: 5px 6px; }
+  .wrap { padding-left: 0; padding-right: 0; }
+}
+</style>
+
+<div class="wrap">
+<h1>DeepZoom Cleaner — UX &amp; Optimization Report</h1>
+<div class="meta">
+  <span class="tag">Remote DeepZoom Folder Cleaner</span>
+  <span class="tag">Python + PySide6 QML</span>
+  <span class="tag">Windows 11</span>
+  <span class="tag">2026-10-28</span>
+</div>
+
+<h2><span class="anchor" id="status"></span>What was verified <span class="count">status</span></h2>
+<p>Every source file in the project was read: <code>qml/Main.qml</code>, <code>qml/SessionTab.qml</code>, <code>qml/FileExplorerView.qml</code>, <code>qml/DiskUsageView.qml</code>, <code>qml/DeleteFoldersView.qml</code>, <code>deepzoom_cleaner/backend.py</code>, <code>deepzoom_cleaner/session_manager.py</code>, <code>deepzoom_cleaner/settings.py</code>, <code>main.py</code>, <code>build.py</code>, <code>build_gui.py</code>, <code>README.md</code>, <code>tests/test_backend.py</code>, and the prior <code>UI_UX_Optimization_Report.md</code>.</p>
+<p>Both GUIs were launched headlessly (<code>QT_QPA_PLATFORM=offscreen</code>) since no display is available:</p>
+<ul>
+  <li><strong>Main app GUI</strong> — loads without errors: 1 root object, correct window title, persisted dark theme applied, session count 1. No real QML errors; only benign style-customization notes (suppressed at runtime by <code>QT_QUICK_CONTROLS_STYLE=Basic</code> set in <code>main.py</code>).</li>
+  <li><strong>Builder GUI</strong> (<code>build_gui.py</code>) — loads headlessly ("BUILD GUI LOADED OK").</li>
+  <li><strong>Backend tests</strong> — <code>python -m pytest tests/test_backend.py</code>: <strong>23/23 pass</strong> (6 BackendTests + 17 UploadDownloadTests).</li>
+</ul>
+<p class="small"><em>Limitation:</em> no live SSH server is available, so the connected flow (file explorer, properties dialog, deletion, upload/download) could not be exercised end-to-end. No literal screenshots were possible; headless render checks were used instead.</p>
+
+<h2><span class="anchor" id="implemented"></span>Optimizations already implemented (verified in code)</h2>
+<table>
+  <thead>
+    <tr><th style="width:14%">Priority</th><th style="width:42%">Optimization</th><th>Where (file:line)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="severity sev-p0">P0</span></td>
+      <td>Properties dialog shows <em>Counting contents…</em> during recursive walk (<code>statsLoading</code> set on <code>onEntryStatsProgress</code>).</td>
+      <td><span class="ref">FileExplorerView.qml:156-161</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p0">P0</span></td>
+      <td>User's "Show less" choice preserved across stats loads (<code>statsUserCollapsed</code> respected on load; reset when starting loading or toggling).</td>
+      <td><span class="ref">FileExplorerView.qml:142-154, 1702-1714</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p0">P0</span></td>
+      <td>Last connection persisted and used to pre-fill the connection form on startup (<code>last_connection</code> via <code>getLastConnection()</code>).</td>
+      <td><span class="ref">SessionTab.qml:53-60; Main.qml:710-718</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p0">P0</span></td>
+      <td>Window/app icon set via <code>QGuiApplication.setWindowIcon</code> with <code>deepzoom_cleaner/icon.png</code>.</td>
+      <td><span class="ref">main.py:15-17</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p1">P1</span></td>
+      <td>File list column sorting — <code>sortBy</code>/<code>sortOrder</code>, clickable headers with ▲/▼ indicators, <code>rebuildModel()</code> sorts by Name/Size/Modified/Type.</td>
+      <td><span class="ref">FileExplorerView.qml:51-52, 269-305, 1208-1316</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p1">P1</span></td>
+      <td>Download Cancel aborts the SFTP transfer — <code>_download_cancelled</code> threading.Event + <code>cancelDownload()</code> slot; callback checks the flag and raises to abort; QML Cancel button wired.</td>
+      <td><span class="ref">backend.py:624, 1830-1833, 1852-1859; FileExplorerView.qml:2401</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p1">P1</span></td>
+      <td><code>loadDirectoryStats</code> streams line-by-line stdout instead of blocking full-read; new <code>directoryStatsProgress</code> signal emitted during the walk.</td>
+      <td><span class="ref">backend.py:1420-1500</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p2">P2</span></td>
+      <td>Light/dark/system theme support — <code>getTheme()</code>/<code>setTheme()</code> persist preference; all QML views use theme-dependent palettes; Settings selector added; theme applied on startup from backend.</td>
+      <td><span class="ref">backend.py:677-685; Main.qml:24-37, 248-273, 715-717</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p3">P3</span></td>
+      <td>Keyboard shortcuts — Ctrl+A select all, Delete delete (with confirm), F5 refresh, Enter open folder/download file.</td>
+      <td><span class="ref">FileExplorerView.qml:13-34</span></td>
+    </tr>
+    <tr>
+      <td><span class="severity sev-p3">P3</span></td>
+      <td>Repo hygiene — <code>.gitignore</code> enhanced (venv, build, dist, pyc, output.txt, crash report, <code>.deepzoom-cleaner/</code>); Nuitka crash report removed.</td>
+      <td><span class="ref">.gitignore</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2><span class="anchor" id="remaining"></span>Remaining optimization opportunities</h2>
+<p>Grouped by severity. Items marked <strong>broken</strong> confuse users today; <strong>gap</strong> means a missing feature; <strong>polish</strong> means refinement. Each lists a concrete fix and the file:line to touch.</p>
+
+<h3 id="p0"><span class="severity sev-p0">P0 — fix broken / confusing UX first</span></h3>
+<div class="card stripe danger">
+  <header><span class="severity sev-p0">P0</span><h3>"Connect" from Recent Sessions doesn't actually connect (broken)</h3></header>
+  <p>Clicking "Connect" on a recent connection (<span class="ref">Main.qml:656-663</span>) calls <code>addSession()</code> and switches to the new tab, but never loads the saved profile — the connection form stays empty, so nothing happens. The comment even admits it: "The SessionTab will load the history when its dialog opens" — but nothing opens a dialog.</p>
+  <p><strong>Fix:</strong> when connecting from history, populate the new session's form fields (host, port, username, remote path) from the profile and trigger connect, or open the session tab pre-filled so the user only needs to enter the password.</p>
+</div>
+<div class="card stripe danger">
+  <header><span class="severity sev-p0">P0</span><h3>Manage Connections "Load" button does nothing (broken)</h3></header>
+  <p>The "Load" button in the saved-connections dialog (<span class="ref">Main.qml:184-189</span>) only closes the dialog — the profile is never applied to any session.</p>
+  <p><strong>Fix:</strong> wire "Load" to apply <code>modelData</code> to the active (or a new) session's connection form, matching the dropdown's existing <code>loadConnectionProfile</code> behavior.</p>
+</div>
+<div class="card stripe danger">
+  <header><span class="severity sev-p0">P0</span><h3><code>DeleteFoldersView.qml</code> is orphaned/dead code</h3></header>
+  <p>This view exists (<span class="ref">qml/DeleteFoldersView.qml</span>) but is never instantiated anywhere — <span class="ref">qml</span> contains no reference to it. The session stack only mounts <code>FileExplorerView</code> and <code>DiskUsageView.qml</code>. It also reaches into <code>backend._settings</code> (a private member), breaking encapsulation.</p>
+  <p><strong>Fix:</strong> either wire it into the session stack (e.g. as a tab/tool) or remove it; if kept, route settings access through public backend slots instead of <code>_settings</code>.</p>
+</div>
+<div class="card stripe danger">
+  <header><span class="severity sev-p0">P0</span><h3>"Save passwords in history" checkbox is dead UI</h3></header>
+  <p>The checkbox (<span class="ref">Main.qml:275-279</span>) is hard-coded <code>checked: false</code> with an empty <code>onToggled</code> — it does nothing and stores nothing.</p>
+  <p><strong>Fix:</strong> wire it to settings persistence (or remove it if password persistence isn't implemented, to avoid false expectations).</p>
+</div>
+
+<h3 id="p1"><span class="severity sev-p1">P1 — important gaps</span></h3>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Window geometry is never saved or restored (gap)</h3></header>
+  <p><code>settings.py</code> defines <code>get_window_geometry()</code> and <code>save_window_geometry()</code> but <span class="ref">main.py</span> never calls either, so the window always reopens at 1200×850 regardless of user resizing.</p>
+  <p><strong>Fix:</strong> call <code>save_window_geometry</code> on <code>closing</code>/<code>aboutToQuit</code>, and apply saved geometry to the <code>ApplicationWindow</code> in <code>Component.onCompleted</code>.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>No keyboard submit for the connection form (gap)</h3></header>
+  <p>Pressing Enter in the host/port/username/password fields does not connect; there's no "Connect on Enter" affordance, and no Ctrl+L focus for a path bar in the explorer.</p>
+  <p><strong>Fix:</strong> bind Enter on the connection form fields to the connect action; add Ctrl+L to focus the explorer path bar.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Inconsistent dialog modality (gap)</h3></header>
+  <p>The download dialog is modal but the upload dialog is not (<code>modal: false</code>), so upload behavior differs from download for no clear reason.</p>
+  <p><strong>Fix:</strong> make both file dialogs consistently modal (or both non-modal) <span class="ref">FileExplorerView.qml</span>.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Toast notification is not theme-aware</h3></header>
+  <p>The toast uses a hard-coded <code>"#333333"</code> background <span class="ref">Main.qml:55</span> — fine on light, but a fixed mid-grey that doesn't adapt to the dark surface (<code>#020617</code>), so it looks off in dark theme.</p>
+  <p><strong>Fix:</strong> derive the toast background from theme tokens like the rest of the app.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Connection status dot overlaps tab text</h3></header>
+  <p>The status dot is anchored to <code>tabText.left</code> <span class="ref">Main.qml:360-370</span>, so it renders on top of the "● "/"○ " prefix already drawn in the tab label — a visible duplication/overlap.</p>
+  <p><strong>Fix:</strong> anchor the dot to the left of the tab content (before the text) or drop the dot since the label already carries the connected indicator.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Theme "system" doesn't detect the system theme</h3></header>
+  <p>The comment at <span class="ref">Main.qml:23</span> says "system resolves to light for now" — picking System always yields a light app, even on a dark Windows.</p>
+  <p><strong>Fix:</strong> implement real system-theme detection (query the OS theme via the backend or platform) so "System" follows Windows light/dark.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>No app version shown anywhere</h3></header>
+  <p>The window title is just "Remote DeepZoom Folder Cleaner" <span class="ref">Main.qml:14</span> with no version, making support and bug reports harder.</p>
+  <p><strong>Fix:</strong> append the app version to the title and/or add an About dialog.</p>
+</div>
+<div class="card stripe warning">
+  <header><span class="severity sev-p1">P1</span><h3>Multi-select is checkbox-only</h3></header>
+  <p>Selection works via checkboxes + Select All/None only — no Ctrl/Shift-click row selection, which power users expect in a file list.</p>
+  <p><strong>Fix:</strong> add Ctrl+click / Shift+click row selection alongside checkboxes.</p>
+</div>
+
+<h3 id="p2"><span class="severity sev-p2">P2 — polish</span></h3>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>No empty-state guidance on the welcome screen</h3></header>
+  <p>The welcome screen explains what the app does but not what the user needs (a Linux server, SSH access, credentials) — a first-time user has no hint of prerequisites.</p>
+  <p><strong>Fix:</strong> add a short "What you need" hint box on the welcome screen.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Generic empty-state text in the file list</h3></header>
+  <p>"This folder is empty." is shown regardless of whether the folder is genuinely empty, the listing failed, or stats are still loading.</p>
+  <p><strong>Fix:</strong> differentiate empty vs. error vs. loading states with distinct copy.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>"Show more" disabled silently for non-folders</h3></header>
+  <p>The properties dialog's detail toggle is disabled for files with no explanation why.</p>
+  <p><strong>Fix:</strong> add a small hint ("Folder stats only available for directories") when disabled <span class="ref">FileExplorerView.qml properties dialog</span>.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Dialog sizes are inconsistent</h3></header>
+  <p>Dialogs use mixed fixed widths (480/500/600px) with no shared sizing system.</p>
+  <p><strong>Fix:</strong> standardize dialog widths by role (narrow / standard / wide).</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Tooltip delay is sluggish (600 ms)</h3></header>
+  <p><code>ToolTip.delay: 600</code> <span class="ref">Main.qml:408</span> makes hover labels feel slow.</p>
+  <p><strong>Fix:</strong> reduce to ~300 ms app-wide.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>No "Disconnect" action once connected</h3></header>
+  <p>There's no visible way to drop an SSH session short of closing the tab.</p>
+  <p><strong>Fix:</strong> add a Disconnect button/action in the connected session tab.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>No About dialog</h3></header>
+  <p>No app/version/license information is reachable from the UI.</p>
+  <p><strong>Fix:</strong> add an About item (menu or Settings).</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Disk usage tables refresh only on demand</h3></header>
+  <p>The mounted-filesystems and block-devices tables in <code>DiskUsageView</code> have refresh buttons but no auto-refresh, so usage numbers go stale.</p>
+  <p><strong>Fix:</strong> add optional periodic refresh (pause when the view is inactive).</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Download cancel has no confirmation/feedback</h3></header>
+  <p>Cancel aborts the SFTP transfer but the user gets no indication the transfer actually stopped.</p>
+  <p><strong>Fix:</strong> show a toast when a download is cancelled.</p>
+</div>
+<div class="card stripe accent">
+  <header><span class="severity sev-p2">P2</span><h3>Duplicate manage-connections dialogs</h3></header>
+  <p><code>SessionTab.qml</code> defines its own <code>manageConnectionsDialog</code> alongside <code>Main.qml</code>'s — duplicated UI.</p>
+  <p><strong>Fix:</strong> consolidate to a single shared dialog.</p>
+</div>
+
+<h3 id="p3"><span class="severity sev-p3">P3 — minor / nit</span></h3>
+<div class="card">
+  <header><span class="severity sev-p3">P3</span><h3>Toasts can't be dismissed manually</h3></header>
+  <p>The toast auto-dismisses after 4 s but has no click-to-dismiss affordance <span class="ref">Main.qml:51-95</span>.</p>
+</div>
+<div class="card">
+  <header><span class="severity sev-p3">P3</span><h3>Status bar lacks connection/disk info</h3></header>
+  <p>The status bar doesn't show current connection state or disk usage at a glance.</p>
+</div>
+<div class="card">
+  <header><span class="severity sev-p3">P3</span><h3>Path bar is not a breadcrumb</h3></header>
+  <p>The folder path is a plain text field — no clickable parent-folder navigation.</p>
+</div>
+<div class="card">
+  <header><span class="severity sev-p3">P3</span><h3>No inline size/folder count in file list rows</h3></header>
+  <p>Row entries don't preview compressed stats inline.</p>
+</div>
+
+<h2><span class="anchor" id="suggested-order"></span>Suggested implementation order</h2>
+<ol>
+  <li><strong>P0:</strong> fix Recent Sessions "Connect" and Manage Connections "Load" so saved connections actually work — this is the app's primary onboarding path and it's broken today.</li>
+  <li><strong>P0:</strong> decide on <code>DeleteFoldersView.qml</code> — wire it in or remove it.</li>
+  <li><strong>P0:</strong> wire up or remove the "Save passwords in history" checkbox.</li>
+  <li><strong>P1:</strong> save/restore window geometry; Enter-to-connect; consistent dialog modality; theme-aware toast; fix status-dot overlap; real "System" theme detection.</li>
+  <li><strong>P2:</strong> welcome-screen guidance, differentiated empty states, disabled-toggle hint, dialog sizing, tooltip delay, Disconnect action, About dialog, disk-usage auto-refresh, cancel feedback, consolidate duplicate dialogs.</li>
+  <li><strong>P3:</strong> click-to-dismiss toast, status-bar info, breadcrumb path bar.</li>
+</ol>
+
+<div class="note">
+  <p><strong>Method note.</strong> This report was produced by reading all project sources, launching both GUIs headlessly (<code>QT_QPA_PLATFORM=offscreen</code>), and running the backend test suite (23/23 pass). Because no live SSH server and no display are available, the connected UI flow (file explorer, properties, deletion, transfer) could not be exercised, and no literal screenshots were captured. Line references are current as of the working tree on branch <code>main</code> (2026-10-28).</p>
+</div>
+
+</div>

@@ -1,0 +1,6 @@
+QML: root loaded, children: 4
+QML: root width(): 1200 height(): 850 visible: True
+QML: sessionTabRoot size: 0.0 0.0 visible: True
+QML: disconnectedView size: 0.0 0.0 visible: True
+QML: sessionStack size: 0.0 0.0 visible: True currentIndex: 0
+QML: ColumnLayout size: 1200.0 850.0 visible: True

@@ -6,9 +6,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import paramiko
+from PySide6.QtCore import QCoreApplication
+from PySide6.QtTest import QSignalSpy
+import time
 
 from deepzoom_cleaner.backend import (
     Backend,
@@ -170,6 +173,282 @@ class BackendTests(unittest.TestCase):
             "example.test", "user", "2222", "/srv/deepzoom", "", "secret"
         )
         self.assertIsNone(backend._pending_host_key)
+
+
+class UploadDownloadTests(unittest.TestCase):
+    """Tests for uploadFile and downloadFile covering every failure case."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QCoreApplication([])
+
+    def setUp(self):
+        self.backend = Backend()
+
+    # -- helpers -----------------------------------------------------------
+
+    def _wait_for_busy(self, timeout: float = 10.0) -> None:
+        """Wait for backend worker threads to complete, processing events."""
+        start = time.time()
+        while self.backend._busy and (time.time() - start) < timeout:
+            self.app.processEvents()
+            time.sleep(0.01)
+
+    def _make_settings(self) -> dict:
+        return {
+            "host": "example.test",
+            "port": 22,
+            "username": "user",
+            "remote_path": "/srv/deepzoom",
+            "key_filename": None,
+            "password": None,
+        }
+
+    # -- Upload validation (synchronous, no thread) -----------------------
+
+    def test_upload_not_connected(self):
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.uploadFile("/local/file.txt", "/remote/file.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Connect to the server first", spy.at(0)[0])
+
+    def test_upload_empty_local_path(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.uploadFile("", "/remote/file.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Both local and remote paths are required", spy.at(0)[0])
+
+    def test_upload_empty_remote_path(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.uploadFile("/local/file.txt", "")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Both local and remote paths are required", spy.at(0)[0])
+
+    def test_upload_remote_path_not_absolute(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.uploadFile("/local/file.txt", "relative/path.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Remote path must be absolute", spy.at(0)[0])
+
+    # -- Upload local file checks (async worker thread) -------------------
+
+    def test_upload_local_file_not_found(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.uploadCompleted)
+        self.backend.uploadFile("/nonexistent/file.txt", "/remote/file.txt")
+        self._wait_for_busy()
+        self.assertEqual(spy.size(), 1)
+        self.assertFalse(spy.at(0)[1])
+        self.assertIn("Local file not found", spy.at(0)[2])
+
+    def test_upload_local_path_is_directory(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.uploadCompleted)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.backend.uploadFile(tmpdir, "/remote/file.txt")
+            self._wait_for_busy()
+        self.assertEqual(spy.size(), 1)
+        self.assertFalse(spy.at(0)[1])
+        self.assertIn("Local file not found", spy.at(0)[2])
+
+    # -- Upload SFTP failure (async worker thread) ------------------------
+
+    def test_upload_sftp_put_permission_denied(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+            mock_sftp.put.side_effect = PermissionError("Permission denied")
+
+            import os
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
+                f.write(b"test content")
+                temp_path = f.name
+
+            try:
+                spy = QSignalSpy(self.backend.uploadCompleted)
+                self.backend.uploadFile(temp_path, "/remote/file.txt")
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertFalse(spy.at(0)[1])
+                self.assertIn("Permission denied", spy.at(0)[2])
+                mock_sftp.put.assert_called_once()
+            finally:
+                os.unlink(temp_path)
+
+    def test_upload_sftp_connection_lost(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+            mock_sftp.put.side_effect = OSError("Lost connection")
+
+            import os
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
+                f.write(b"test content")
+                temp_path = f.name
+
+            try:
+                spy = QSignalSpy(self.backend.uploadCompleted)
+                self.backend.uploadFile(temp_path, "/remote/file.txt")
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertFalse(spy.at(0)[1])
+                self.assertIn("Lost connection", spy.at(0)[2])
+            finally:
+                os.unlink(temp_path)
+
+    # -- Upload success -----------------------------------------------------
+
+    def test_upload_success(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+
+            import os
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
+                f.write(b"test content")
+                temp_path = f.name
+
+            try:
+                spy = QSignalSpy(self.backend.uploadCompleted)
+                self.backend.uploadFile(temp_path, "/remote/file.txt")
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertTrue(spy.at(0)[1])
+                self.assertIn("Uploaded", spy.at(0)[2])
+                mock_sftp.put.assert_called_once()
+            finally:
+                os.unlink(temp_path)
+
+    # -- Download validation (synchronous, no thread) ----------------------
+
+    def test_download_not_connected(self):
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.downloadFile("/remote/file.txt", "/local/file.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Connect to the server first", spy.at(0)[0])
+
+    def test_download_empty_local_path(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.downloadFile("/remote/file.txt", "")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Both local and remote paths are required", spy.at(0)[0])
+
+    def test_download_empty_remote_path(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.downloadFile("", "/local/file.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Both local and remote paths are required", spy.at(0)[0])
+
+    def test_download_remote_path_not_absolute(self):
+        self.backend._settings = self._make_settings()
+        spy = QSignalSpy(self.backend.errorOccurred)
+        self.backend.downloadFile("relative/path.txt", "/local/file.txt")
+        self.assertEqual(spy.size(), 1)
+        self.assertIn("Remote path must be absolute", spy.at(0)[0])
+
+    # -- Download remote file checks (async worker thread) -----------------
+
+    def test_download_remote_file_not_found(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+            mock_sftp.stat.side_effect = FileNotFoundError("No such file")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                local_path = str(Path(tmpdir) / "downloaded.txt")
+                spy = QSignalSpy(self.backend.downloadCompleted)
+                self.backend.downloadFile("/remote/nonexistent.txt", local_path)
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertFalse(spy.at(0)[1])
+                self.assertIn("No such file", spy.at(0)[2])
+
+    # -- Download SFTP failure (async worker thread) ----------------------
+
+    def test_download_sftp_get_failure(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+
+            mock_stat = MagicMock()
+            mock_stat.st_size = 100
+            mock_sftp.stat.return_value = mock_stat
+            mock_sftp.get.side_effect = IOError("Disk full")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                local_path = str(Path(tmpdir) / "downloaded.txt")
+                spy = QSignalSpy(self.backend.downloadCompleted)
+                self.backend.downloadFile("/remote/file.txt", local_path)
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertFalse(spy.at(0)[1])
+                self.assertIn("Disk full", spy.at(0)[2])
+
+    def test_download_sftp_connection_lost(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+
+            mock_stat = MagicMock()
+            mock_stat.st_size = 100
+            mock_sftp.stat.return_value = mock_stat
+            mock_sftp.get.side_effect = OSError("Lost connection")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                local_path = str(Path(tmpdir) / "downloaded.txt")
+                spy = QSignalSpy(self.backend.downloadCompleted)
+                self.backend.downloadFile("/remote/file.txt", local_path)
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertFalse(spy.at(0)[1])
+                self.assertIn("Lost connection", spy.at(0)[2])
+
+    # -- Download success -----------------------------------------------------
+
+    def test_download_success(self):
+        self.backend._settings = self._make_settings()
+        with patch.object(self.backend, "_open_client") as mock_open:
+            mock_client = MagicMock()
+            mock_sftp = MagicMock()
+            mock_client.open_sftp.return_value = mock_sftp
+            mock_open.return_value = mock_client
+
+            mock_stat = MagicMock()
+            mock_stat.st_size = 100
+            mock_sftp.stat.return_value = mock_stat
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                local_path = str(Path(tmpdir) / "downloaded.txt")
+                spy = QSignalSpy(self.backend.downloadCompleted)
+                self.backend.downloadFile("/remote/file.txt", local_path)
+                self._wait_for_busy()
+                self.assertEqual(spy.size(), 1)
+                self.assertTrue(spy.at(0)[1])
+                self.assertIn("Downloaded", spy.at(0)[2])
+                mock_sftp.get.assert_called_once()
 
 
 if __name__ == "__main__":
