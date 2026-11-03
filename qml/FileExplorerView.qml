@@ -731,8 +731,7 @@ Item {
             add("Link target", info.target || "—")
             add("Resolves to", info.resolved || "—")
         }
-        if (info.kind !== "Folder")
-            add("Size", root.formatSize(info.size || 0) + " (" + (info.size || 0) + " bytes)")
+        add("Size", root.formatSize(info.size || 0) + " (" + (info.size || 0) + " bytes)")
         add("Permissions", (info.mode || "—") + "  (" + (info.octal_mode || "—") + ")")
         add("Owner", (info.owner || "—") + "  (uid " + (info.uid !== undefined ? info.uid : "—") + ")")
         add("Group", (info.group || "—") + "  (gid " + (info.gid !== undefined ? info.gid : "—") + ")")
@@ -1462,7 +1461,7 @@ Item {
                                     font.pixelSize: 13
                                 }
                                 Label {
-                                    text: row.isDir ? "—" : root.formatSize(row.size)
+                                    text: root.formatSize(row.size)
                                     color: root.colorTextSecondary
                                     Layout.preferredWidth: 90
                                     horizontalAlignment: Text.AlignRight
